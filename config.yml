@@ -1,0 +1,14 @@
+app_secret: "secret"
+enable_cache: true
+umami:
+  client_ip_header: 
+server:
+  port: 3033
+  prefork: true
+database:
+  mysql:
+    dsn: "root:admin@tcp(127.0.0.1:3306)/umami_tracker?charset=utf8mb4&parseTime=True&loc=Local"
+  redis:
+    addr: "localhost:6379"
+    password: ""
+    db: 0
