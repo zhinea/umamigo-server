@@ -1,14 +1,53 @@
 package queries
 
 import (
+	"context"
+	"github.com/goccy/go-json"
+	"github.com/redis/go-redis/v9"
 	"github.com/zhinea/umamigo-server/entity"
 	"github.com/zhinea/umamigo-server/libs/database"
+	"github.com/zhinea/umamigo-server/utils"
+	"log"
+	"time"
 )
 
-func FindWebsite(websiteId string) entity.Website {
-	var website entity.Website
+func MarshallWebsite(website entity.Website) string {
+	val, err := json.Marshal(website)
+	if err != nil {
+		panic(err)
+	}
+	return string(val)
+}
 
-	database.DB.First(&website, "website_id = ?", websiteId)
+func FindWebsite(websiteId string) entity.Website {
+	website := entity.Website{}
+	ctx := context.TODO()
+
+	dbQueryTimer := time.Now()
+	if utils.Cfg.EnableCache {
+		res, err := database.Redis.Get(database.Ctx, "website:"+websiteId).Result()
+
+		if err == redis.Nil {
+		} else if err != nil {
+			panic(err)
+		} else {
+			err = json.Unmarshal([]byte(res), &website)
+			if err != nil {
+				panic(err)
+			}
+
+			log.Println("main->session->queries: Website query took [cached]", time.Now().Sub(dbQueryTimer).String())
+			return website
+		}
+	}
+
+	//database.DB.Table("website").Take(&website, "website_id = ?", websiteId)
+
+	database.DB.Raw("SELECT * FROM website WHERE website_id = ?", websiteId).Scan(&website)
+
+	database.Redis.Set(ctx, "website:"+websiteId, MarshallWebsite(website), 86400)
+
+	log.Println("main->session->queries: Website query took ", time.Now().Sub(dbQueryTimer).String())
 
 	return website
 }

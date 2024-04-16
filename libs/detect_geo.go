@@ -1,68 +1,45 @@
 package detectgeo
 
 import (
-	"github.com/dineshgowda24/browser"
+	"github.com/mileusna/useragent"
 	"github.com/oschwald/maxminddb-golang"
-	"github.com/zhinea/umamigo-server/libs/session"
+	"github.com/zhinea/umamigo-server/entity"
 	"github.com/zhinea/umamigo-server/utils"
 	"log"
 	"net"
 	"path"
+	"time"
 )
 
-type Location struct {
-	Country      string `json:"country,omitempty"`
-	Subdivision1 string `json:"subdivision1,omitempty"`
-	Subdivision2 string `json:"subdivision2,omitempty"`
-	City         string `json:"city,omitempty"`
-}
-
-type Agent struct {
-	Browser string `json:"browser,omitempty"`
-	OS      string `json:"os,omitempty"`
-	Device  string `json:"device,omitempty"`
-}
-
-type ClientInfo struct {
-	UserAgent    string `json:"user_agent,omitempty"`
-	Browser      string `json:"browser,omitempty"`
-	OS           string `json:"os,omitempty"`
-	IP           string `json:"ip,omitempty"`
-	Country      string `json:"country,omitempty"`
-	Subdivision1 string `json:"subdivision1,omitempty"`
-	Subdivision2 string `json:"subdivision2,omitempty"`
-	City         string `json:"city,omitempty"`
-	Device       string `json:"device,omitempty"`
-}
-
 var mindDBInialized bool = false
-var mindDB maxminddb.Reader
+var mindDB *maxminddb.Reader
 
-func getLocation(payload session.PayloadData) Location {
+func getLocation(payload *entity.UseSessionPayloadData) entity.GeoLocation {
 	// ignore local ips
 	if payload.IsLocal {
-		return Location{}
+		return entity.GeoLocation{}
 	}
 
 	headers := payload.Headers
 
 	if headers["cf-ipcountry"] != nil {
-		return Location{
-			Country:      utils.DecodeURIComponent(headers["cf-ipcountry"][0]),
-			Subdivision1: utils.DecodeURIComponent(headers["cf-region-code"][0]),
-			City:         utils.DecodeURIComponent(headers["cf-city"][0]),
+		return entity.GeoLocation{
+			Country:      utils.DecodeURIComponent(utils.SoftTouch(headers["cf-ipcountry"])),
+			Subdivision1: utils.DecodeURIComponent(utils.SoftTouch(headers["cf-region-code"])),
+			City:         utils.DecodeURIComponent(utils.SoftTouch(headers["cf-city"])),
 		}
 	}
 
 	if headers["x-vercel-ip-country"] != nil {
-		return Location{
-			Country:      utils.DecodeURIComponent(headers["x-vercel-ip-country"][0]),
-			Subdivision1: utils.DecodeURIComponent(headers["x-vercel-ip-country-region"][0]),
-			City:         utils.DecodeURIComponent(headers["x-vercel-ip-city"][0]),
+		return entity.GeoLocation{
+			Country:      utils.DecodeURIComponent(utils.SoftTouch(headers["x-vercel-ip-country"])),
+			Subdivision1: utils.DecodeURIComponent(utils.SoftTouch(headers["x-vercel-ip-country-region"])),
+			City:         utils.DecodeURIComponent(utils.SoftTouch(headers["x-vercel-ip-city"])),
 		}
 	}
 
 	if !mindDBInialized {
+		log.Println("Initializing maxminddb")
 		dir := path.Join(".", "geo")
 
 		var err error
@@ -76,45 +53,49 @@ func getLocation(payload session.PayloadData) Location {
 
 	ip := net.ParseIP(payload.IP)
 
-	result := Location{}
+	result := entity.GeoLocation{}
 
 	err := mindDB.Lookup(ip, &result)
 	if err != nil {
-		return Location{}
+		return entity.GeoLocation{}
 	}
 
 	return result
 }
 
-func getAgent(userAgent string) Agent {
-	b, err := browser.NewBrowser(userAgent)
+func getAgent(userAgent string) entity.GeoAgent {
+	b := useragent.Parse(userAgent)
 
-	if err != nil {
-		log.Println(err)
-		return Agent{}
-	}
-
-	return Agent{
-		Browser: b.Name(),
-		OS:      b.Platform().Name(),
-		Device:  b.Device().Name(),
+	return entity.GeoAgent{
+		Browser: b.Name,
+		OS:      b.OS,
+		Device:  b.Device,
 	}
 }
 
-func GetClientInfo(payload session.PayloadData) ClientInfo {
-	userAgent := payload.Headers["user-agent"]
+func GetClientInfo(payload *entity.UseSessionPayloadData) entity.GeoClientInfo {
+
+	userAgentParsingTime := time.Now()
+	userAgent := utils.SoftTouch(payload.Headers["User-Agent"])
+	log.Println("main->session->geo: User agent parsing took ", time.Now().Sub(userAgentParsingTime).String())
+
 	ip := payload.IP
+
+	locationTimer := time.Now()
 	location := getLocation(payload)
 
 	country := location.Country
 	subdivision1 := location.Subdivision1
 	subdivision2 := location.Subdivision2
 	city := location.City
+	log.Println("main->session->geo: Location took ", time.Now().Sub(locationTimer).String())
 
-	agent := getAgent(userAgent[0])
+	agentTimer := time.Now()
+	agent := getAgent(userAgent)
+	log.Println("main->session->geo: Agent parsing took ", time.Now().Sub(agentTimer).String())
 
-	return ClientInfo{
-		UserAgent:    userAgent[0],
+	return entity.GeoClientInfo{
+		UserAgent:    userAgent,
 		Browser:      agent.Browser,
 		OS:           agent.OS,
 		IP:           ip,

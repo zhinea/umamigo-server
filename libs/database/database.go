@@ -11,7 +11,7 @@ import (
 
 var DB *gorm.DB
 var Redis *redis.Client
-var Ctx = context.Background()
+var Ctx = context.TODO()
 
 func Connect() {
 	ConnectMySQL()
@@ -30,6 +30,7 @@ func ConnectMySQL() {
 }
 
 func ConnectRedis() {
+	log.Println("using " + string(rune(utils.Cfg.Database.Redis.DB)) + " as redis db")
 	Redis = redis.NewClient(&redis.Options{
 		Addr:     utils.Cfg.Database.Redis.Addr,
 		Password: utils.Cfg.Database.Redis.Password,

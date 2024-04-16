@@ -6,26 +6,24 @@ import (
 	detectgeo "github.com/zhinea/umamigo-server/libs"
 	myjwt "github.com/zhinea/umamigo-server/libs/jwt"
 	"github.com/zhinea/umamigo-server/libs/queries"
+	"github.com/zhinea/umamigo-server/utils"
 	"log"
 	"regexp"
+	"time"
 )
-
-type PayloadData struct {
-	Headers map[string][]string
-	body    entity.RequestPayload
-	IP      string
-	IsLocal bool
-}
 
 var HostnameRegex, _ = regexp.Compile("^[\\w-.]+$")
 
-func UseSession(payload PayloadData) (entity.SessionClaims, error) {
+func UseSession(payload *entity.UseSessionPayloadData) (entity.JWTSessionClaims, error) {
 
 	cacheToken := payload.Headers["x-umami-cache"]
 
 	if len(cacheToken) > 0 {
-		log.Println("Using cache token")
+		parsingTimer := time.Now()
+
 		result, err := myjwt.ParseToken(cacheToken[0])
+
+		log.Println("main->session: Parsing took ", time.Now().Sub(parsingTimer).String())
 
 		if err != nil {
 			log.Println(err)
@@ -34,19 +32,71 @@ func UseSession(payload PayloadData) (entity.SessionClaims, error) {
 		}
 	}
 
-	body := payload.body
+	validationTimer := time.Now()
+
+	body := payload.Body
 
 	if !HostnameRegex.MatchString(body.Hostname) {
-		return entity.SessionClaims{}, errors.New("invalid hostname")
+		return entity.JWTSessionClaims{}, errors.New("invalid hostname")
 	}
 
 	website := queries.FindWebsite(body.ID)
 
-	if website.ID == "" {
-		return entity.SessionClaims{}, errors.New("website not found")
+	if website.WebsiteID == "" {
+		return entity.JWTSessionClaims{}, errors.New("website not found")
 	}
+
+	log.Println("main->session: Validation took ", time.Now().Sub(validationTimer).String())
+
+	clientGEOTimer := time.Now()
 
 	client := detectgeo.GetClientInfo(payload)
 
-	return entity.SessionClaims{}, nil
+	log.Println("main->session: Client geo took ", time.Now().Sub(clientGEOTimer).String())
+
+	uuidGenerateTimer := time.Now()
+
+	sessionID := utils.UUID(
+		body.ID,
+		body.Hostname,
+		client.IP,
+		client.UserAgent,
+	)
+	visitID := utils.UUID(
+		sessionID,
+		utils.VisitSalt(),
+	)
+
+	log.Println("main->session: UUID generation took ", time.Now().Sub(uuidGenerateTimer).String())
+
+	getSessionTimer := time.Now()
+	session := queries.FindSession(sessionID)
+
+	if session.SessionID == "" {
+		session = entity.Session{
+			SessionID:    sessionID,
+			WebsiteID:    body.ID,
+			Hostname:     body.Hostname,
+			Browser:      client.Browser,
+			OS:           client.OS,
+			Device:       client.Device,
+			Screen:       body.Screen,
+			Language:     body.Language,
+			Country:      client.Country,
+			Subdivision1: client.Subdivision1,
+			Subdivision2: client.Subdivision2,
+			City:         client.City,
+		}
+		queries.CreateSession(session)
+	}
+
+	log.Println("main->session: Get session took ", time.Now().Sub(getSessionTimer).String())
+
+	return entity.JWTSessionClaims{
+		SessionClaims: entity.SessionClaims{
+			Session: session,
+			OwnerID: website.UserID,
+			VisitID: visitID,
+		},
+	}, nil
 }

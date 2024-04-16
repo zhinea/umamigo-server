@@ -6,7 +6,7 @@ import (
 )
 
 type Session struct {
-	ID           string    `json:"session_id"`
+	SessionID    string    `json:"session_id"`
 	WebsiteID    string    `json:"website_id"`
 	Hostname     string    `json:"hostname,omitempty"`
 	Browser      string    `json:"browse,omitempty"`
@@ -31,4 +31,11 @@ type SessionClaims struct {
 type JWTSessionClaims struct {
 	jwt.RegisteredClaims
 	SessionClaims
+}
+
+type UseSessionPayloadData struct {
+	Headers map[string][]string
+	Body    RequestPayload
+	IP      string
+	IsLocal bool
 }

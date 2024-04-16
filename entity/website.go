@@ -3,7 +3,7 @@ package entity
 import "time"
 
 type Website struct {
-	ID        string    `json:"website_id"`
+	WebsiteID string    `json:"website_id"`
 	Name      string    `json:"name"`
 	Domain    string    `json:"domain,omitempty"`
 	ShareID   string    `json:"share_id,omitempty"`
