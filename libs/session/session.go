@@ -39,6 +39,7 @@ func UseSession(payload *entity.UseSessionPayloadData) (entity.JWTSessionClaims,
 	if !HostnameRegex.MatchString(body.Hostname) {
 		return entity.JWTSessionClaims{}, errors.New("invalid hostname")
 	}
+	log.Println("main->session: [hostname_regex] verification", time.Now().Sub(validationTimer).String())
 
 	website := queries.FindWebsite(body.ID)
 

@@ -21,7 +21,6 @@ func MarshallSession(session entity.Session) string {
 
 func FindSession(sessionId string) entity.Session {
 	session := entity.Session{}
-	ctx := context.TODO()
 
 	dbQueryTimer := time.Now()
 
@@ -41,13 +40,12 @@ func FindSession(sessionId string) entity.Session {
 			log.Println("main->session->queries: Session query took [cached]", time.Now().Sub(dbQueryTimer).String())
 			return session
 		}
-
 	}
+	ctx := context.TODO()
 
-	//database.DB.Table("session").Take(&session, "session_id = ?", sessionId)
 	database.DB.Raw("SELECT * FROM session WHERE session_id = ?", sessionId).Scan(&session)
 
-	err := database.Redis.Set(ctx, "session:"+sessionId, MarshallSession(session), 86400).Err()
+	err := database.Redis.Set(ctx, "session:"+sessionId, MarshallSession(session), 0).Err()
 
 	if err != nil {
 		log.Fatal(err)

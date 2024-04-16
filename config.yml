@@ -1,7 +1,12 @@
+env: "development"
 app_secret: "secret"
 enable_cache: true
 umami:
   client_ip_header:
+  constants:
+    event_name_length: 50
+    url_length: 500
+    page_title_length: 500
 server:
   port: 3033
   prefork: false

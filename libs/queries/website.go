@@ -21,7 +21,6 @@ func MarshallWebsite(website entity.Website) string {
 
 func FindWebsite(websiteId string) entity.Website {
 	website := entity.Website{}
-	ctx := context.TODO()
 
 	dbQueryTimer := time.Now()
 	if utils.Cfg.EnableCache {
@@ -40,12 +39,11 @@ func FindWebsite(websiteId string) entity.Website {
 			return website
 		}
 	}
-
-	//database.DB.Table("website").Take(&website, "website_id = ?", websiteId)
+	ctx := context.TODO()
 
 	database.DB.Raw("SELECT * FROM website WHERE website_id = ?", websiteId).Scan(&website)
 
-	database.Redis.Set(ctx, "website:"+websiteId, MarshallWebsite(website), 86400)
+	database.Redis.Set(ctx, "website:"+websiteId, MarshallWebsite(website), 0)
 
 	log.Println("main->session->queries: Website query took ", time.Now().Sub(dbQueryTimer).String())
 

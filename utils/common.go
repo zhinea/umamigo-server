@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"github.com/jinzhu/now"
 	uuid "github.com/satori/go.uuid"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 func Or(s ...string) string {
@@ -53,7 +55,7 @@ func GenerateUUIDWithSeed(seed string) string {
 
 	// generate the UUID from the
 	// first 16 bytes of the MD5 hash
-	u, err := uuid.FromBytes([]byte(md5string[0:16]))
+	u, err := uuid.FromString(md5string)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,9 +64,13 @@ func GenerateUUIDWithSeed(seed string) string {
 }
 
 func UUID(args ...string) string {
+	uuidCreationTimer := time.Now()
 	seed := strings.Join(args, ".")
 
-	return GenerateUUIDWithSeed(seed + Salt())
+	res := GenerateUUIDWithSeed(seed + Salt())
+
+	log.Println("UUID generation took", time.Now().Sub(uuidCreationTimer).String())
+	return res
 }
 
 func SoftTouch(data interface{}) string {
@@ -77,7 +83,7 @@ func SoftTouch(data interface{}) string {
 	return ""
 }
 
-// getIP returns the ip address from the http request
+// GetIP returns the ip address from the http request
 func GetIP(r *http.Request) (string, error) {
 	ips := r.Header.Get("X-Forwarded-For")
 	splitIps := strings.Split(ips, ",")
@@ -105,4 +111,27 @@ func GetIP(r *http.Request) (string, error) {
 	}
 
 	return "", errors.New("IP not found")
+}
+
+func Substr(s string, start int, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end < 0 {
+		end = len(s)
+	}
+	if start > end {
+		start, end = end, start
+	}
+	if end > len(s) {
+		end = len(s)
+	}
+	return s[start:end]
+}
+
+func Recover() {
+	if r := recover(); r != nil {
+		// log error
+		fmt.Println(r)
+	}
 }
